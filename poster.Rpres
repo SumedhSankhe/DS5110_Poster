@@ -1,0 +1,115 @@
+EDA of H1B Applications
+========================================================
+author: Sumedh R. Sankhe
+date: 10/09/2017
+autosize: true
+
+Background
+========================================================
+
+The Bureau of Labor Statistics Provides year data on H1B visa applications, the data used in this presentation was downloaded from the following link during the Spring of 2017 and used for project for the course DA-5020 Collecting Storing and Retreiving Data. The Data contains visa application responses from 2013 to Q1-2017. As of 9th September 2017 the link is non-functional.   
+
+https://www.foreignlaborcert.doleta.gov/performancedata.cfm#dis
+
+
+- The Data Was Cleaned
+- Broken down into a SQL-Lite database
+- The Database Queried using dplyr and plotted using ggplot2
+
+```{r setup, include=FALSE}
+library(dbplyr)
+library(ggplot2)
+library(RSQLite)
+library(dplyr)
+mydb <- dbConnect(SQLite(), dbname = "H1b")
+gdb <- src_memdb()
+gdb <- src_sqlite("H1b", create = F)
+Employer <- tbl(gdb,"EMPLOYER")
+NAICS_CODE <- tbl(gdb,"NAICS_CODE")
+SOC_CODE <- tbl(gdb,"SOC_CODE")
+SOC_NAME <- tbl(gdb,"SOC_NAME")
+SOC <- tbl(gdb,"SOC")
+Worksite <- tbl(gdb,"Worksite")
+Main <- tbl(gdb,"MAIN")
+
+Job.Title <- function(job){
+  job <- toupper(job)
+Main %>%
+    filter(JOB_TITLE == job) %>%
+    left_join(Employer, "EMID") %>%
+    left_join(Worksite, "WKID") -> a 
+    a %>% 
+      select(CASE_STATUS,
+             EMPLOYER_NAME,
+             PREVAILING_WAGE,
+             WORKSITE_CITY,
+             WORKSITE_STATE,
+             Year,
+             FULL_TIME_POSITION) %>%
+      collect() %>%
+      data.frame() ->a
+    
+    a %>%
+      select(EMPLOYER_NAME)%>%
+      table()%>%
+      data.frame()%>%
+      arrange(desc(Freq))%>%
+      head(n=15)%>%
+      rename("Company" = ".") ->a1
+    
+    a %>%
+      filter(CASE_STATUS =="CERTIFIED")%>%
+      select(WORKSITE_STATE) %>%
+      table()%>%
+      data.frame()%>%
+      arrange(desc(Freq))%>%
+      head(n=15)%>%
+      rename("Work State" = ".")-> a2
+    
+    
+    a%>% filter(WORKSITE_STATE %in% a2$`Work State`)->a3
+    
+    g <- ggplot(a3,aes(y=PREVAILING_WAGE,x=WORKSITE_STATE, fill=factor(Year)))+
+      xlab("Worksite States")+
+      ylab("Prevaling Wage (USD)")
+    g <- g +
+      geom_boxplot()+
+      scale_fill_discrete(name = "Year")+
+      theme(axis.text=element_text(size=20),
+        axis.title=element_text(size=20,
+                                face="bold",
+                                margin = margin(t = 15, r = 15, b =15, l = 15)),
+        plot.title = element_text(size = 30, face = "italic"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 21))+
+      guides(fill = guide_legend(keywidth = 3,keyheight = 3))
+    g
+    
+    newList <- list(a1,a2,g)
+    
+return(newList)
+}
+
+```
+
+Most H1B Applications for an Employer
+==========================================================
+```{r results = 'asis', echo = FALSE, warning = FALSE}
+x <- Job.Title("DATA SCIENTIST")
+ knitr::kable(x[[1]], caption = "Median Wage across Positions")
+```
+***
+Thus we see that Microsoft, Facebook and Uber are leading the charts for number of H1B visa applications for Data Scientists from the year 2013 to the first quarter of 2017  
+
+Pay Variations of a Data Scientist by State
+========================================================
+Probably having a co-op or an internship somewhere in California, New York, New Jersey, Washington or Massachusetts could be rewarding.
+```{r, echo=FALSE, fig.height=8, fig.width=19}
+
+
+x[[3]]
+```
+
+
+
+
